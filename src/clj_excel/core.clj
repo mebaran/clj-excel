@@ -1,7 +1,7 @@
 (ns clj-excel.core
   (:use clojure.java.io)
   (:import [org.apache.poi.xssf.usermodel XSSFWorkbook])
-  (:import [org.apache.poi.ss.usermodel Row Cell DateUtil WorkbookFactory]))
+  (:import [org.apache.poi.ss.usermodel Row Cell DateUtil WorkbookFactory CellStyle Font]))
 
 (def ^:dynamic *row-missing-policy* Row/CREATE_NULL_AS_BLANK)
 
@@ -12,27 +12,97 @@
                                :date 14 :day-month-year 15 :day-month-name 16 :month-name-year 17
                                :hour-am-pm 18 :time-am-pm 1 :hour 20 :time 21 :datetime 22})
 
+;; Utility Constant Look Up ()
+
+(defn constantize
+  "Helper to read constants from classes like keywords."
+  [klass kw]
+  (.get (.getDeclaredField klass (-> kw name (.replace "-" "_") .toUpperCase)) Object))
+
+(defn cell-style-constant
+  ([kw prefix]
+     (if (number? kw)
+       (short kw)
+       (short (constantize CellStyle (if prefix
+                                       (str
+                                        (name prefix) "-"
+                                        (-> kw name
+                                            (.replaceFirst (str prefix "-") "")
+                                            (.replaceFirst (str prefix "_") "")
+                                            (.replaceFirst prefix "")))
+                                       kw)))))
+  ([kw] (cell-style-constant kw nil)))
+
+;; Workbook and Style functions
+
 (defn data-format
   "Get dataformat by number or create new."
   [wb sformat]
   (if (keyword? sformat)
     (data-format wb (sformat *data-formats*))
-    (-> wb .createDataFormat (.getFormat (if (number? sformat) (short sformat) sformat)))))
+    (-> wb .getCreationHelper
+        .createDataFormat
+        (.getFormat (if (number? sformat) (short sformat) sformat)))))
+
+(defn set-border
+  ([cs all] (set-border all all all all))
+  ([cs caps sides] (set-border caps sides sides caps))
+  ([cs top right bottom left] ;; CSS ordering
+     (.setBorderTop cs (cell-style-constant top :border))
+     (.setBorderRight cs (cell-style-constant right :border))
+     (.setBorderBottom cs (cell-style-constant bottom :border))
+     (.setBorderLeft cs (cell-style-constant left :border))))
+
+(defn font
+  [wb fontspec]
+  (let [default-font (.getFontAt wb (short 0)) ;; First font is default
+        boldweight (short (get fontspec :boldweight (if (:bold fontspec)
+                                                      Font/BOLDWEIGHT_BOLD
+                                                      Font/BOLDWEIGHT_NORMAL)))
+        color (short (get fontspec :color (.getColor default-font)))
+        size (short (* 20 (short (get fontspec :size (.getFontHeightInPoints default-font)))))
+        name (str (get fontspec :font (.getFontName default-font)))
+        italic (boolean (get fontspec :italic false))
+        strikeout (boolean (get fontspec :strikeout false))
+        typeoffset (short 0)
+        underline (byte (get fontspec :underline (.getUnderline default-font)))]
+    (or
+     (.findFont wb boldweight size color name italic strikeout typeoffset underline)
+     (doto (.createFont wb)
+         (.setBoldweight boldweight)
+         (.setColor color)
+         (.setFontName name)
+         (.setItalic italic)
+         (.setStrikeout strikeout)
+         (.setUnderline underline)))))
+
+(defn create-cell-style
+  "Create style for workbook"
+  [wb & {format :format alignment :alignment border :border fontspec :font}]
+  (let [cell-style (-> wb
+                       .getCreationHelper
+                       .createCellStyle)]
+    (if format (.setDataFormat cell-style (data-format wb format)))
+    (if alignment (.setAlignment cell-style (constantize alignment :align)))
+    (if border (if (coll? border) (apply set-border cell-style border) (set-border cell-style border)))
+    (if fontspec (.setFont cell-style (font wb fontspec)))))
+
+;; Reading functions
 
 (defn cell-value
   "Return proper getter based on cell-value"
   ([cell] (cell-value cell (.getCellType cell)))
   ([cell cell-type]
-      (condp = cell-type
-        Cell/CELL_TYPE_BLANK nil
-        Cell/CELL_TYPE_STRING (.getStringCellValue cell)
-        Cell/CELL_TYPE_NUMERIC (if (DateUtil/isCellDateFormatted cell)
-                                 (.getDateCellValue cell)
-                                 (.getNumericCellValue cell))
-        Cell/CELL_TYPE_BOOLEAN (.getBooleanCellValue cell)
-        Cell/CELL_TYPE_FORMULA {:formula (.getCellFormula cell)}
-        Cell/CELL_TYPE_ERROR {:error (.getErrorCellValue cell)}
-        :unsupported)))
+     (condp = cell-type
+       Cell/CELL_TYPE_BLANK nil
+       Cell/CELL_TYPE_STRING (.getStringCellValue cell)
+       Cell/CELL_TYPE_NUMERIC (if (DateUtil/isCellDateFormatted cell)
+                                (.getDateCellValue cell)
+                                (.getNumericCellValue cell))
+       Cell/CELL_TYPE_BOOLEAN (.getBooleanCellValue cell)
+       Cell/CELL_TYPE_FORMULA {:formula (.getCellFormula cell)}
+       Cell/CELL_TYPE_ERROR {:error (.getErrorCellValue cell)}
+       :unsupported)))
 
 (defn workbook
   "Create or open new excel workbook."
@@ -70,12 +140,14 @@
   ([row col] (.getCell row col))
   ([sheet row col] (get-cell (or (.getRow sheet row) (.createRow sheet row)) col)))
 
+;; Wrting Functions
+
 (defn coerce
   "Coerce cell for Java typing."
   [v]
   (cond
    (number? v) (double v)
-   (or (symbol? v) (keyword? v)) (str v)
+   (or (symbol? v) (keyword? v)) (name v)
    :else v))
 
 (defn set-cell
