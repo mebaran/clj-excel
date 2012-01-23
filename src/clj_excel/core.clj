@@ -1,6 +1,7 @@
 (ns clj-excel.core
   (:use clojure.java.io)
   (:import [org.apache.poi.xssf.usermodel XSSFWorkbook])
+  (:import [org.apache.poi.hssf.usermodel HSSFWorkbook])
   (:import [org.apache.poi.ss.usermodel Row Cell DateUtil WorkbookFactory CellStyle Font]))
 
 (def ^:dynamic *row-missing-policy* Row/CREATE_NULL_AS_BLANK)
@@ -15,7 +16,7 @@
 ;; Utility Constant Look Up ()
 
 (defn constantize
-  "Helper to read constants from classes like keywords."
+  "Helper to read constants from constant like keywords within a class.  Reflection powered."
   [klass kw]
   (.get (.getDeclaredField klass (-> kw name (.replace "-" "_") .toUpperCase)) Object))
 
@@ -27,9 +28,9 @@
                                        (str
                                         (name prefix) "-"
                                         (-> kw name
-                                            (.replaceFirst (str prefix "-") "")
-                                            (.replaceFirst (str prefix "_") "")
-                                            (.replaceFirst prefix "")))
+                                            (.replaceFirst (str (name prefix) "-") "")
+                                            (.replaceFirst (str (name prefix) "_") "")
+                                            (.replaceFirst (name prefix) "")))
                                        kw)))))
   ([kw] (cell-style-constant kw nil)))
 
@@ -38,13 +39,13 @@
 (defn data-format
   "Get dataformat by number or create new."
   [wb sformat]
-  (if (keyword? sformat)
-    (data-format wb (sformat *data-formats*))
-    (-> wb .getCreationHelper
-        .createDataFormat
-        (.getFormat (if (number? sformat) (short sformat) sformat)))))
+  (cond
+   (keyword? sformat) (data-format wb (sformat *data-formats*))
+   (number? sformat) (short sformat)
+   (string? sformat) (-> wb .getCreationHelper .createDataFormat (.getFormat sformat))))
 
 (defn set-border
+  "Set borders, css order style.  Borders set CSS order."
   ([cs all] (set-border all all all all))
   ([cs caps sides] (set-border caps sides sides caps))
   ([cs top right bottom left] ;; CSS ordering
@@ -54,38 +55,42 @@
      (.setBorderLeft cs (cell-style-constant left :border))))
 
 (defn font
+  "Register font with "
   [wb fontspec]
-  (let [default-font (.getFontAt wb (short 0)) ;; First font is default
-        boldweight (short (get fontspec :boldweight (if (:bold fontspec)
-                                                      Font/BOLDWEIGHT_BOLD
-                                                      Font/BOLDWEIGHT_NORMAL)))
-        color (short (get fontspec :color (.getColor default-font)))
-        size (short (* 20 (short (get fontspec :size (.getFontHeightInPoints default-font)))))
-        name (str (get fontspec :font (.getFontName default-font)))
-        italic (boolean (get fontspec :italic false))
-        strikeout (boolean (get fontspec :strikeout false))
-        typeoffset (short 0)
-        underline (byte (get fontspec :underline (.getUnderline default-font)))]
-    (or
-     (.findFont wb boldweight size color name italic strikeout typeoffset underline)
-     (doto (.createFont wb)
+  (if (isa? (type fontspec) Font)
+    fontspec
+    (let [default-font (.getFontAt wb (short 0)) ;; First font is default
+          boldweight (short (get fontspec :boldweight (if (:bold fontspec)
+                                                        Font/BOLDWEIGHT_BOLD
+                                                        Font/BOLDWEIGHT_NORMAL)))
+          color (short (get fontspec :color (.getColor default-font)))
+          size (short (* 20 (short (get fontspec :size (.getFontHeightInPoints default-font)))))
+          name (str (get fontspec :font (.getFontName default-font)))
+          italic (boolean (get fontspec :italic false))
+          strikeout (boolean (get fontspec :strikeout false))
+          typeoffset (short (get fontspec :typeoffset 0))
+          underline (byte (get fontspec :underline (.getUnderline default-font)))]
+      (or
+       (.findFont wb boldweight size color name italic strikeout typeoffset underline)
+       (doto (.createFont wb)
          (.setBoldweight boldweight)
          (.setColor color)
          (.setFontName name)
          (.setItalic italic)
          (.setStrikeout strikeout)
-         (.setUnderline underline)))))
+         (.setUnderline underline))))))
 
 (defn create-cell-style
   "Create style for workbook"
   [wb & {format :format alignment :alignment border :border fontspec :font}]
-  (let [cell-style (-> wb
-                       .getCreationHelper
-                       .createCellStyle)]
+  (let [cell-style (.createCellStyle wb)]
+    (if fontspec (.setFont cell-style (font wb fontspec)))
     (if format (.setDataFormat cell-style (data-format wb format)))
-    (if alignment (.setAlignment cell-style (constantize alignment :align)))
-    (if border (if (coll? border) (apply set-border cell-style border) (set-border cell-style border)))
-    (if fontspec (.setFont cell-style (font wb fontspec)))))
+    (if alignment (.setAlignment cell-style (cell-style-constant alignment :align)))
+    (if border (if (coll? border)
+                 (apply set-border cell-style border)
+                 (set-border cell-style border)))
+    cell-style))
 
 ;; Reading functions
 
@@ -105,20 +110,20 @@
        :unsupported)))
 
 (defn workbook
-  "Create or open new excel workbook."
+  "Create or open new excel workbook. Defaults to xlsx format."
   ([] (new XSSFWorkbook))
   ([input] (WorkbookFactory/create (input-stream input))))
 
 (defn sheets
-  "Get map of sheets."
-  [wb] (zipmap (map #(.getSheetName %1) wb) (seq wb)))
+  "Get seq of sheets."
+  [wb] (map #(.getSheetAt wb %1) (range 0 (.getNumberOfSheets wb))))
 
 (defn rows
-  "Return rows from sheet as seq."
+  "Return rows from sheet as seq.  Simple seq cast via Iterable implementation."
   [sheet] (seq sheet))
 
 (defn cells
-  "Return seq of cells from row"
+  "Return seq of cells from row.  Simpel seq cast via Iterable implementation." 
   [row] (seq row))
 
 (defn values
@@ -133,7 +138,7 @@
 (defn lazy-workbook
   "Lazy workbook report."
   [wb]
-  (zipmap (map #(.getSheetName %1) wb) (lazy-sheet wb)))
+  (zipmap (map #(.getSheetName %1) wb) (map lazy-sheet (sheets wb))))
 
 (defn get-cell
   "Sell cell within row"
@@ -158,7 +163,7 @@
 
 (defn merge-rows
   "Add rows at end of sheet."
-  [sheet start rows step]
+  [sheet start rows]
   (doall
    (map
     (fn [rownum vals] (doall (map #(set-cell sheet rownum %1 %2) (iterate inc 0) vals)))
@@ -175,13 +180,15 @@
 
 (defn build-workbook
   "Build workbook from map of sheet names to multi dimensional seqs (ie a seq of seq)."
-  [wb-map]
-  (let [wb (workbook)]
-    (doseq [[sheetname rows] wb-map]
-      (build-sheet wb (str sheetname) rows))
-    wb))
+  ([wb wb-map]
+     (doseq [[sheetname rows] wb-map]
+       (build-sheet wb (str sheetname) rows))
+     wb)
+  ([wb-map] (build-workbook (workbook) wb-map)))
 
 (defn save
   "Write worksheet to output-stream as coerced by OutputStream."
-  [wb]
-  (.save wb (output-stream wb)))
+  [wb path]
+  (let [out (output-stream path)]
+    (.write wb out)
+    out))
