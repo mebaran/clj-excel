@@ -109,9 +109,14 @@
        Cell/CELL_TYPE_ERROR {:error (.getErrorCellValue cell)}
        :unsupported)))
 
-(defn workbook
+(defn workbook-xssf
   "Create or open new excel workbook. Defaults to xlsx format."
   ([] (new XSSFWorkbook))
+  ([input] (WorkbookFactory/create (input-stream input))))
+
+(defn workbook-hssf
+  "Create or open new excel workbook. Defaults to xls format."
+  ([] (new HSSFWorkbook))
   ([input] (WorkbookFactory/create (input-stream input))))
 
 (defn sheets
@@ -184,7 +189,7 @@
      (doseq [[sheetname rows] wb-map]
        (build-sheet wb (str sheetname) rows))
      wb)
-  ([wb-map] (build-workbook (workbook) wb-map)))
+  ([wb-map] (build-workbook (workbook-xssf) wb-map)))
 
 (defn save
   "Write workbook to output-stream as coerced by OutputStream."
