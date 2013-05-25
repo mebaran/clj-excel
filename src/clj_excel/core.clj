@@ -187,7 +187,7 @@
   ([wb-map] (build-workbook (workbook) wb-map)))
 
 (defn save
-  "Write worksheet to output-stream as coerced by OutputStream."
+  "Write workbook to output-stream as coerced by OutputStream."
   [wb path]
   (let [out (output-stream path)]
     (.write wb out)
