@@ -194,6 +194,5 @@
 (defn save
   "Write workbook to output-stream as coerced by OutputStream."
   [wb path]
-  (let [out (output-stream path)]
-    (.write wb out)
-    out))
+  (with-open [out (output-stream path)]
+    (.write wb out)))
