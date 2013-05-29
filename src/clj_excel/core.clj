@@ -138,12 +138,16 @@
 (defn lazy-sheet
   "Lazy seq of seq representing rows and cells."
   [sheet]
-  (map #(map values %1) sheet))
+  (map #(map cell-value %1) sheet))
+
+(defn sheet-names
+  [wb]
+  (->> (.getNumberOfSheets wb) (range) (map #(.getSheetName wb %))))
 
 (defn lazy-workbook
   "Lazy workbook report."
   [wb]
-  (zipmap (map #(.getSheetName %1) wb) (map lazy-sheet (sheets wb))))
+  (zipmap (sheet-names wb) (map lazy-sheet (sheets wb))))
 
 (defn get-cell
   "Sell cell within row"
