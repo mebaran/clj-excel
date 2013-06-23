@@ -5,7 +5,9 @@ The goal is to give you a carefree experience while using
 
 Please note that the API isn't stable yet!
 
-[poi-home]: http://poi.apache.org/ "The Java API for Microsoft
+[![Build Status](https://travis-ci.org/undernorthernsky/clj-excel.png)](https://travis-ci.org/undernorthernsky/clj-excel)
+
+[poi-home]: http://poi.apache.org/ "The Java API for Microsoft"
 
 ## Usage
 
