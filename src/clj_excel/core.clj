@@ -256,9 +256,10 @@
 (defn build-workbook
   "Build workbook from map of sheet names to multi dimensional seqs (ie a seq of seq)."
   ([wb wb-map]
-     (doseq [[sheetname rows] wb-map]
-       (build-sheet wb (str sheetname) rows))
-     wb)
+     (let [cache (caching-style-builder wb)]
+       (doseq [[sheetname rows] wb-map]
+         (build-sheet wb (str sheetname) (create-sheet-data-style cache rows)))
+       wb))
   ([wb-map] (build-workbook (workbook-xssf) wb-map)))
 
 (defn save
