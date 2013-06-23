@@ -2,9 +2,9 @@
   (:use [clj-excel.core])
   (:use [clojure.test])
   (:import [java.io ByteArrayInputStream ByteArrayOutputStream]
-           [org.apache.poi.ss.usermodel WorkbookFactory DateUtil]))
+           [org.apache.poi.ss.usermodel WorkbookFactory DateUtil Font]))
 
-;; restore data to nested vecs instead of seqs
+;; restore data to nested vecs instead of seqs; equality test
 (defn postproc-wb [m]
   (->> (for [[k v] m]
          [k (vec (map vec v))])
@@ -23,13 +23,14 @@
     (save wb os)
     (WorkbookFactory/create (ByteArrayInputStream. (.toByteArray os)))))
 
-(defn do-roundtrip [data mode]
-  (-> (wb-from-data data mode) (save-load-cycle) (lazy-workbook) (postproc-wb)))
+(defn do-roundtrip [data mode cell-fn]
+  (-> (wb-from-data data mode) (save-load-cycle)
+      (lazy-workbook #(lazy-sheet % cell-fn)) (postproc-wb)))
 
 ;; compare the data to the original
-(defn valid-workbook-roundtrip? [data mode]
-  (= data (do-roundtrip data mode)))
-
+(defn valid-workbook-roundtrip?
+  ([data mode] (= data (do-roundtrip data mode cell-value)))
+  ([data mode cell-fn] (= data (do-roundtrip data mode cell-fn))))
 
 ;; just numbers (doubles in poi); note: rows need not have equal length
 (def trivial-input {"one" [[1.0] [2.0 3.0] [4.0 5.0 6.0]]})
@@ -42,14 +43,49 @@
 ;; FIXME: Dates need hand holding :-(
 (defn fix-date [e] [[(DateUtil/getJavaDate (ffirst e))]])
 (defn fixed-roundtrip? [data mode]
-  (-> (do-roundtrip data mode) (update-in ["four"] fix-date)
+  (-> (do-roundtrip data mode cell-value) (update-in ["four"] fix-date)
       (= data)))
 
 (def now (java.util.Date.))
 ;; multiple sheets with different cell types
 (def many-sheets {"one"   [[1.0]]   "two"  [["hello"]]
-                  "three" [[false]] "four" [[now]]})
+                  "three" [[false]] "four" [[now]]
+                  "five"  [[nil]]})
 
 (deftest roundtrip-many
   (is (fixed-roundtrip? many-sheets :xssf))
   (is (fixed-roundtrip? many-sheets :hssf)))
+
+;; setting a map-typed object: value & hyperlink
+(def url-link-input {"a" [[{:value "example.com" :link-url "http://www.example.com/"}]]})
+(defn val-link-map [cell]
+  {:value (cell-value cell) :link-url (.getAddress (.getHyperlink cell))})
+
+(deftest cell-url-link
+  (doseq [t [:hssf :xssf]]
+    (is (valid-workbook-roundtrip? url-link-input t val-link-map))))
+
+;; verify the fontspec api works
+(def font-test-data
+  [{:in {:font "Courier New" :size 16 :bold true}
+    :out {:fontName "Courier New" :fontHeightInPoints 16
+          :boldweight Font/BOLDWEIGHT_BOLD} }
+   {:in {:font "Arial" :size 12 :italic true :color (color-indices :red) :strikeout true}
+    :out {:fontName "Arial" :fontHeightInPoints 12 :italic true
+          :color (color-indices :red) :strikeout true}}
+   {:in {:underline :single}
+    :out {:underline (underline-indices :single)}}])
+
+(deftest fontspec-api
+  (let [wb (workbook-hssf)]
+    (doseq [{in :in out :out} font-test-data]
+      (is (= (select-keys (bean (font wb in)) (keys out))
+             out)))))
+
+;; data format can be set by keyword or format string
+(deftest dataformat-api
+  (let [wb (workbook-hssf)]
+    (is (= ((bean (create-cell-style wb :format :date)) :dataFormat)
+           (data-formats :date)))
+    (is (= ((bean (create-cell-style wb :format "yyyy-mm-dd")) :dataFormatString)
+           "yyyy-mm-dd"))))
