@@ -71,6 +71,9 @@
      (.setBorderBottom cs (cell-style-constant bottom :border))
      (.setBorderLeft cs (cell-style-constant left :border))))
 
+(defn- col-idx [v]
+  (short (if (keyword? v) (color-indices v) v)))
+
 (defn font
   "Register font with "
   [wb fontspec]
@@ -80,7 +83,9 @@
           boldweight (short (get fontspec :boldweight (if (:bold fontspec)
                                                         Font/BOLDWEIGHT_BOLD
                                                         Font/BOLDWEIGHT_NORMAL)))
-          color (short (get fontspec :color (.getColor default-font)))
+          color (short (if-let [k (fontspec :color)]
+                         (col-idx k)
+                         (.getColor default-font)))
           size (short (get fontspec :size (.getFontHeightInPoints default-font)))
           name (str (get fontspec :font (.getFontName default-font)))
           italic (boolean (get fontspec :italic false))
@@ -103,7 +108,7 @@
 (defn create-cell-style
   "Create style for workbook"
   [wb & {format :format alignment :alignment border :border fontspec :font
-         bg-color :background-color fg-color :foreground-color}]
+         bg-color :background-color fg-color :foreground-color pattern :pattern}]
   (let [cell-style (.createCellStyle wb)]
     (if fontspec (.setFont cell-style (font wb fontspec)))
     (if format (.setDataFormat cell-style (data-format wb format)))
@@ -111,13 +116,14 @@
     (if border (if (coll? border)
                  (apply set-border cell-style border)
                  (set-border cell-style border)))
-    (if fg-color (.setFillForegroundColor cell-style fg-color))
-    (if bg-color (.setFillBackgroundColor cell-style bg-color))
+    (if fg-color (.setFillForegroundColor cell-style (col-idx fg-color)))
+    (if bg-color (.setFillBackgroundColor cell-style (col-idx bg-color)))
+    (if pattern  (.setFillPattern cell-style (cell-style-constant pattern)))
     cell-style))
 
 ;; extract the sub-map of options supported by create-cell-style
 (defn- get-style-attributes [m]
-  (select-keys m [:format :alignment :border :font :background-color :foreground-color]))
+  (select-keys m [:format :alignment :border :font :background-color :foreground-color :pattern]))
 
 (defprotocol StyleCache
   (build-style [this cell-data]))
@@ -136,7 +142,7 @@
       (build-style [_ style-key]
         (if-let [style (get @cache style-key)]
           style
-          (let [style (apply create-cell-style wb (apply seq style-key))]
+          (let [style (apply create-cell-style wb (reduce #(conj %1 (first %2) (second %2)) [] style-key))]
             (swap! cache assoc style-key style)
             style))))))
 
@@ -223,10 +229,10 @@
 (defmethod cell-mutator nil [^Cell cell null] (.setCellType cell Cell/CELL_TYPE_BLANK))
 (defmethod cell-mutator APersistentMap [^Cell cell m]
   (cell-mutator cell (m :value))
-  (when-let [style (m :style)]
-    (.setCellStyle cell style))
   (when-let [link-key (get-link-type m)]
     (create-link cell link-key (m link-key)))
+  (when-let [style (m :style)]
+    (.setCellStyle cell style))
   (when-let [formula (m :formula)]
     (.setCellFormula (m :formula))))
 
@@ -267,4 +273,3 @@
   [wb path]
   (with-open [out (output-stream path)]
     (.write wb out)))
-

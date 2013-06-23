@@ -104,3 +104,40 @@
     (is (= (select-keys (bean (create-cell-style wb :border [:none :thin :medium :thick]))
                         [:borderTop :borderRight :borderBottom :borderLeft])
            {:borderLeft 5, :borderBottom 2, :borderRight 1, :borderTop 0}))))
+
+
+;; playing with cell styles
+;; note: hyperlink-cell have unreadable color defaults; you better set those
+(def stylish-test-data
+   {"foo" [[{:value "Hello world" :font {:font "Courier New" :size 16 :color :blue}
+            :foreground-color :maroon :pattern :solid-foreground}]]
+    "bar" [[{:value "click me" :link-url "http://www.example.com/"
+             :font {:color :black :font "Serif" :size 10}}]]})
+
+(defn font-info [cell idx]
+  (-> cell .getSheet .getWorkbook (.getFontAt (short idx)) bean
+      (select-keys [:fontName :fontHeightInPoints :color])))
+
+(defn extract-stylish [cell]
+  (merge (hash-map :value (cell-value cell)
+                   :style (select-keys (bean (.getCellStyle cell))
+                                       [:fillPattern :fillForegroundColor])
+                   :font (font-info cell (.getFontIndex (.getCellStyle cell))))
+         (when-let [link (.getHyperlink cell)]
+           {:link-url (.getAddress link)})))
+
+;; note: needs explicit fonts; different defaults xls: Arial, xlsx: Colibri
+(deftest stylish-test
+  (let [expected {"bar"
+                  [[{:style {:fillForegroundColor 64, :fillPattern 0},
+                     :link-url "http://www.example.com/",
+                     :font {:color 8, :fontHeightInPoints 10, :fontName "Serif"},
+                     :value "click me"}]],
+                  "foo"
+                  [[{:style {:fillForegroundColor 25, :fillPattern 1},
+                     :font {:color 12, :fontHeightInPoints 16, :fontName "Courier New"},
+                     :value "Hello world"}]]}]
+    (is (= (do-roundtrip stylish-test-data :hssf extract-stylish)
+           expected))
+    (is (= (do-roundtrip stylish-test-data :xssf extract-stylish)
+           expected))))
