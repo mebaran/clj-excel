@@ -64,7 +64,7 @@
 (defn set-border
   "Set borders, css order style.  Borders set CSS order."
   ([cs all] (set-border cs all all all all))
-  ([cs caps sides] (set-border cs caps sides sides caps))
+  ([cs caps sides] (set-border cs caps sides caps sides))
   ([cs top right bottom left] ;; CSS ordering
      (.setBorderTop cs (cell-style-constant top :border))
      (.setBorderRight cs (cell-style-constant right :border))

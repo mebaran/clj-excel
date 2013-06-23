@@ -89,3 +89,18 @@
            (data-formats :date)))
     (is (= ((bean (create-cell-style wb :format "yyyy-mm-dd")) :dataFormatString)
            "yyyy-mm-dd"))))
+
+(deftest border-style-api
+  (let [wb (workbook-hssf)]
+    ;; all to the same type
+    (is (= (select-keys (bean (create-cell-style wb :border :medium-dashed))
+                        [:borderTop :borderRight :borderBottom :borderLeft])
+           {:borderLeft 8, :borderBottom 8, :borderRight 8, :borderTop 8}))
+    ;; grouped
+    (is (= (select-keys (bean (create-cell-style wb :border [:none :medium]))
+                        [:borderTop :borderRight :borderBottom :borderLeft])
+           {:borderLeft 2, :borderBottom 0, :borderRight 2, :borderTop 0}))
+    ;; individual styles
+    (is (= (select-keys (bean (create-cell-style wb :border [:none :thin :medium :thick]))
+                        [:borderTop :borderRight :borderBottom :borderLeft])
+           {:borderLeft 5, :borderBottom 2, :borderRight 1, :borderTop 0}))))
