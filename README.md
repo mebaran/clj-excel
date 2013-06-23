@@ -7,7 +7,7 @@ Please note that the API isn't stable yet!
 
 [![Build Status](https://travis-ci.org/undernorthernsky/clj-excel.png)](https://travis-ci.org/undernorthernsky/clj-excel)
 
-[poi-home]: http://poi.apache.org/ "The Java API for Microsoft"
+[poi-home]: http://poi.apache.org/ "The Java API for Microsoft Documents"
 
 ## Usage
 
