@@ -150,8 +150,8 @@
 
 (defn cell-value
   "Return proper getter based on cell-value"
-  ([cell] (cell-value cell (.getCellType cell)))
-  ([cell cell-type]
+  ([^Cell cell] (cell-value cell (.getCellType cell)))
+  ([^Cell cell cell-type]
      (condp = cell-type
        Cell/CELL_TYPE_BLANK nil
        Cell/CELL_TYPE_STRING (.getStringCellValue cell)
