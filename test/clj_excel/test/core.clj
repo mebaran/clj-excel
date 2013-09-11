@@ -2,7 +2,7 @@
   (:use [clj-excel.core])
   (:use [clojure.test])
   (:import [java.io ByteArrayInputStream ByteArrayOutputStream]
-           [org.apache.poi.ss.usermodel WorkbookFactory DateUtil Font]))
+           [org.apache.poi.ss.usermodel WorkbookFactory DateUtil Font Cell]))
 
 ;; restore data to nested vecs instead of seqs; equality test
 (defn postproc-wb [m]
@@ -141,3 +141,33 @@
            expected))
     (is (= (do-roundtrip stylish-test-data :xssf extract-stylish)
            expected))))
+
+(deftest cell-mutator-test
+  (let [wb (wb-from-data {"sheet1" [[nil]]} :hssf)
+        sheet (-> wb sheets first)
+        cell (get-cell sheet 0 0)]
+    (testing "Setting a boolean"
+      (cell-mutator cell true)
+      (is (.getBooleanCellValue cell)))
+    (testing "Setting a number"
+      (cell-mutator cell 1)
+      (is (= 1.0 (.getNumericCellValue cell))))
+    (testing "Setting a string"
+      (cell-mutator cell "foo")
+      (is (= "foo" (.getStringCellValue cell))))
+    (testing "Setting a keyword"
+      (cell-mutator cell :foo)
+      (is (= "foo" (.getStringCellValue cell))))
+    (testing "Setting a date"
+      (cell-mutator cell #inst "2013-09-11")
+      (is (= #inst "2013-09-11" (.getDateCellValue cell))))
+    (testing "Setting nil"
+      (cell-mutator cell nil)
+      (is (= Cell/CELL_TYPE_BLANK (.getCellType cell))))
+    (testing "Setting a cell style"
+      (let [cs (create-cell-style wb)]
+        (cell-mutator cell {:style cs})
+        (is (= cs (.getCellStyle cell)))))
+    (testing "Setting a formula"
+      (cell-mutator cell {:formula "A1"})
+      (is (= "A1" (.getCellFormula cell))))))

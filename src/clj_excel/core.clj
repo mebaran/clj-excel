@@ -234,7 +234,7 @@
   (when-let [style (m :style)]
     (.setCellStyle cell style))
   (when-let [formula (m :formula)]
-    (.setCellFormula (m :formula))))
+    (.setCellFormula cell formula)))
 
 (defn set-cell
   "Set cell at specified location with value."
