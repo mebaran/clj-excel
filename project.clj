@@ -6,4 +6,4 @@
 
   ;; lein with-profile dev cloverage [cloverage-opts]
   :profiles {:dev {:plugins [[lein-cloverage "1.0.2"]]}}
-  :warn-on-reflection true)
+  :global-vars {*warn-on-reflection* true})
