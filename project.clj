@@ -5,5 +5,7 @@
                  [org.apache.poi/poi-ooxml "3.9"]]
 
   ;; lein with-profile dev cloverage [cloverage-opts]
-  :profiles {:dev {:plugins [[lein-cloverage "1.0.2"]]}}
+  :profiles {:dev {:source-paths ["dev"]
+                   :plugins [[lein-cloverage "1.0.2"]]
+                   :dependencies [[org.clojure/tools.namespace "0.2.4"]]}}
   :global-vars {*warn-on-reflection* true})
