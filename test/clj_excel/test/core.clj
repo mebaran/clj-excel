@@ -1,6 +1,7 @@
 (ns clj-excel.test.core
   (:use [clj-excel.core])
   (:use [clojure.test])
+  (:require [clojure.java.io :as io])
   (:import [java.io ByteArrayInputStream ByteArrayOutputStream]
            [org.apache.poi.ss.usermodel WorkbookFactory DateUtil Font Cell]))
 
@@ -25,7 +26,8 @@
 
 (defn do-roundtrip [data mode cell-fn]
   (-> (wb-from-data data mode) (save-load-cycle)
-      (lazy-workbook #(lazy-sheet % cell-fn)) (postproc-wb)))
+      (lazy-workbook #(lazy-sheet % :cell-fn cell-fn))
+      (postproc-wb)))
 
 ;; compare the data to the original
 (defn valid-workbook-roundtrip?
@@ -171,3 +173,21 @@
     (testing "Setting a formula"
       (cell-mutator cell {:formula "A1"})
       (is (= "A1" (.getCellFormula cell))))))
+
+(deftest row-seq-test
+  (let [wb (workbook-hssf (io/resource "test-nil-cell-1.xls"))
+        row (-> wb (.getSheetAt 0) second)]
+    (testing "Default mode is logical"
+      (is (= [1.0 nil 3.0] (row-seq row))))
+    (testing "Mode logical"
+      (is (= [1.0 nil 3.0] (row-seq row :mode :logical))))
+    (testing "Mode physical"
+      (is (= [1.0 3.0] (row-seq row :mode :physical))))))
+
+(deftest lazy-sheet-test
+  (let [wb (workbook-hssf (io/resource "test-nil-cell-1.xls"))
+        sheet (.getSheetAt wb 0)]
+    (testing "Default mode is logical"
+      (is (= [["A" "B" "C"] [1.0 nil 3.0]] (lazy-sheet sheet))))
+    (testing "Mode physical"
+      (is (= [["A" "B" "C"] [1.0 3.0]] (lazy-sheet sheet :mode :physical))))))

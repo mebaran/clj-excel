@@ -163,12 +163,12 @@
        Cell/CELL_TYPE_ERROR {:error (.getErrorCellValue cell)}
        :unsupported)))
 
-(defn workbook-xssf
+(defn ^Workbook workbook-xssf
   "Create or open new excel workbook. Defaults to xlsx format."
   ([] (new XSSFWorkbook))
   ([input] (WorkbookFactory/create (input-stream input))))
 
-(defn workbook-hssf
+(defn ^Workbook workbook-hssf
   "Create or open new excel workbook. Defaults to xls format."
   ([] (new HSSFWorkbook))
   ([input] (WorkbookFactory/create (input-stream input))))
@@ -189,10 +189,36 @@
   "Return cells from sheet as seq."
   [row] (map cell-value (cells row)))
 
+(defn row-seq
+  "Returns a lazy seq of cells of row.
+  
+  Options:
+    :cell-fn function called on each cell, defaults to cell-value
+    :mode    either :logical (default) or :physical
+  
+  Modes:
+    :logical  returns all cells even if they are blank
+    :physical returns only the physically defined cells"
+  {:arglists '([row & opts])}
+  [^Row row & {:keys [cell-fn mode] :or {cell-fn cell-value mode :logical}}] 
+  (condp = mode
+    :logical (map #(when-let [cell (.getCell row %)] (cell-fn cell)) (range 0 (.getLastCellNum row)))
+    :physical (map cell-fn row)
+    (throw (ex-info (str "Unknown mode " mode) {:mode mode}))))
+
 (defn lazy-sheet
-  "Lazy seq of seq representing rows and cells."
-  ([sheet] (lazy-sheet sheet cell-value))
-  ([sheet cell-fn] (map #(map cell-fn %1) sheet)))
+  "Lazy seq of seqs representing rows and cells of sheet.
+  
+  Options:
+    :cell-fn function called on each cell, defaults to cell-value
+    :mode    either :logical (default) or :physical
+  
+  Modes:
+    :logical  returns all cells even if they are blank
+    :physical returns only the physically defined cells"
+  {:arglists '([sheet & opts])}
+  [sheet & {:keys [cell-fn mode] :or {cell-fn cell-value mode :logical}}] 
+  (map #(row-seq % :cell-fn cell-fn :mode mode) sheet))
 
 (defn sheet-names
   [^Workbook wb]
