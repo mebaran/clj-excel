@@ -5,7 +5,7 @@
   (:import [org.apache.poi.xssf.usermodel XSSFWorkbook])
   (:import [org.apache.poi.hssf.usermodel HSSFWorkbook])
   (:import [org.apache.poi.ss.usermodel Row Cell DateUtil WorkbookFactory CellStyle Font
-            Hyperlink]))
+            Hyperlink Workbook Sheet]))
 
 (def ^:dynamic *row-missing-policy* Row/CREATE_NULL_AS_BLANK)
 
@@ -34,7 +34,7 @@
 
 (defn constantize
   "Helper to read constants from constant like keywords within a class.  Reflection powered."
-  [klass kw]
+  [^Class klass kw]
   (.get (.getDeclaredField klass (-> kw name (.replace "-" "_") .toUpperCase)) Object))
 
 (defn cell-style-constant
@@ -55,17 +55,17 @@
 
 (defn data-format
   "Get dataformat by number or create new."
-  [wb sformat]
+  [^Workbook wb sformat]
   (cond
    (keyword? sformat) (data-format wb (sformat data-formats))
    (number? sformat) (short sformat)
-   (string? sformat) (-> wb .getCreationHelper .createDataFormat (.getFormat sformat))))
+   (string? sformat) (-> wb .getCreationHelper .createDataFormat (.getFormat ^String sformat))))
 
 (defn set-border
   "Set borders, css order style.  Borders set CSS order."
   ([cs all] (set-border cs all all all all))
   ([cs caps sides] (set-border cs caps sides caps sides))
-  ([cs top right bottom left] ;; CSS ordering
+  ([^CellStyle cs top right bottom left] ;; CSS ordering
      (.setBorderTop cs (cell-style-constant top :border))
      (.setBorderRight cs (cell-style-constant right :border))
      (.setBorderBottom cs (cell-style-constant bottom :border))
@@ -76,7 +76,7 @@
 
 (defn font
   "Register font with "
-  [wb fontspec]
+  [^Workbook wb fontspec]
   (if (isa? (type fontspec) Font)
     fontspec
     (let [default-font (.getFontAt wb (short 0)) ;; First font is default
@@ -107,7 +107,7 @@
 
 (defn create-cell-style
   "Create style for workbook"
-  [wb & {format :format alignment :alignment border :border fontspec :font
+  [^Workbook wb & {format :format alignment :alignment border :border fontspec :font
          bg-color :background-color fg-color :foreground-color pattern :pattern}]
   (let [cell-style (.createCellStyle wb)]
     (if fontspec (.setFont cell-style (font wb fontspec)))
@@ -175,7 +175,7 @@
 
 (defn sheets
   "Get seq of sheets."
-  [wb] (map #(.getSheetAt wb %1) (range 0 (.getNumberOfSheets wb))))
+  [^Workbook wb] (map #(.getSheetAt wb %1) (range 0 (.getNumberOfSheets wb))))
 
 (defn rows
   "Return rows from sheet as seq.  Simple seq cast via Iterable implementation."
@@ -195,7 +195,7 @@
   ([sheet cell-fn] (map #(map cell-fn %1) sheet)))
 
 (defn sheet-names
-  [wb]
+  [^Workbook wb]
   (->> (.getNumberOfSheets wb) (range) (map #(.getSheetName wb %))))
 
 (defn lazy-workbook
@@ -205,15 +205,15 @@
 
 (defn get-cell
   "Sell cell within row"
-  ([row col] (.getCell row col))
-  ([sheet row col] (get-cell (or (.getRow sheet row) (.createRow sheet row)) col)))
+  ([^Row row col] (.getCell row col))
+  ([^Sheet sheet row col] (get-cell (or (.getRow sheet row) (.createRow sheet row)) col)))
 
 ;; Writing Functions
 
 (defn- get-link-type [m]
   (some #{:link-url :link-email :link-document :like-file} (keys m)))
 
-(defn create-link [cell kw link-to]
+(defn create-link [^Cell cell kw link-to]
   (let [link-type (constantize org.apache.poi.common.usermodel.Hyperlink kw)
         link      (-> cell .getSheet .getWorkbook .getCreationHelper
                       (.createHyperlink link-type))]
@@ -239,8 +239,8 @@
 (defn set-cell
   "Set cell at specified location with value."
   ([cell value] (cell-mutator cell value))
-  ([row col value] (set-cell (or (get-cell row col) (.createCell row col)) value))
-  ([sheet row col value] (set-cell (or (.getRow sheet row) (.createRow sheet row)) col value)))
+  ([^Row row col value] (set-cell (or (get-cell row col) (.createCell row col)) value))
+  ([^Sheet sheet row col value] (set-cell (or (.getRow sheet row) (.createRow sheet row)) col value)))
 
 (defn merge-rows
   "Add rows at end of sheet."
@@ -253,7 +253,7 @@
 
 (defn build-sheet
   "Build sheet from seq of seq (representing cells in row of rows)."
-  [wb sheetname rows]
+  [^Workbook wb sheetname rows]
   (let [sheet (if sheetname
                 (.createSheet wb sheetname)
                 (.createSheet wb))]
@@ -270,6 +270,6 @@
 
 (defn save
   "Write workbook to output-stream as coerced by OutputStream."
-  [wb path]
+  [^Workbook wb path]
   (with-open [out (output-stream path)]
     (.write wb out)))

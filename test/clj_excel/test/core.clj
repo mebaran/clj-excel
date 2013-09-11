@@ -58,7 +58,7 @@
 
 ;; setting a map-typed object: value & hyperlink
 (def url-link-input {"a" [[{:value "example.com" :link-url "http://www.example.com/"}]]})
-(defn val-link-map [cell]
+(defn val-link-map [^Cell cell]
   {:value (cell-value cell) :link-url (.getAddress (.getHyperlink cell))})
 
 (deftest cell-url-link
@@ -114,11 +114,11 @@
     "bar" [[{:value "click me" :link-url "http://www.example.com/"
              :font {:color :black :font "Serif" :size 10}}]]})
 
-(defn font-info [cell idx]
+(defn font-info [^Cell cell idx]
   (-> cell .getSheet .getWorkbook (.getFontAt (short idx)) bean
       (select-keys [:fontName :fontHeightInPoints :color])))
 
-(defn extract-stylish [cell]
+(defn extract-stylish [^Cell cell]
   (merge (hash-map :value (cell-value cell)
                    :style (select-keys (bean (.getCellStyle cell))
                                        [:fillPattern :fillForegroundColor])
@@ -145,7 +145,7 @@
 (deftest cell-mutator-test
   (let [wb (wb-from-data {"sheet1" [[nil]]} :hssf)
         sheet (-> wb sheets first)
-        cell (get-cell sheet 0 0)]
+        ^Cell cell (get-cell sheet 0 0)]
     (testing "Setting a boolean"
       (cell-mutator cell true)
       (is (.getBooleanCellValue cell)))
