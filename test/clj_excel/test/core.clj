@@ -35,6 +35,14 @@
 ;; just numbers (doubles in poi); note: rows need not have equal length
 (def trivial-input {"one" [[1.0] [2.0 3.0] [4.0 5.0 6.0]]})
 
+(deftest gaps-parsed
+  (let [wb-with-gaps (wb-from-data {"one" [[1.0]]})
+        sheet (.getSheetAt wb-with-gaps 0)
+        _ (set-cell sheet 0 2 2.0)
+        _ (set-cell sheet 2 1 4.0)]
+    (is (= {"one" [[1.0 nil 2.0] [] [nil 4.0]]}
+           (lazy-workbook (save-load-cycle wb-with-gaps))))))
+
 (deftest roundtrip-trivial
   (is (valid-workbook-roundtrip? trivial-input :xssf))
   (is (valid-workbook-roundtrip? trivial-input :hssf)))
