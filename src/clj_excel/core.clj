@@ -178,12 +178,12 @@
   [wb] (map #(.getSheetAt wb %1) (range 0 (.getNumberOfSheets wb))))
 
 (defn rows
-  "Return rows from sheet as seq.  Simple seq cast via Iterable implementation."
-  [sheet] (seq sheet))
+  "Return rows from sheet as seq."
+  [sheet] (mapv #(.getRow sheet %) (range 0 (inc (.getLastRowNum sheet)))))
 
 (defn cells
-  "Return seq of cells from row.  Simpel seq cast via Iterable implementation." 
-  [row] (seq row))
+  "Return seq of cells from row."
+  [row] (if-not row [] (map #(.getCell row % Row/CREATE_NULL_AS_BLANK) (range 0 (.getLastCellNum row)))))
 
 (defn values
   "Return cells from sheet as seq."
@@ -192,7 +192,7 @@
 (defn lazy-sheet
   "Lazy seq of seq representing rows and cells."
   ([sheet] (lazy-sheet sheet cell-value))
-  ([sheet cell-fn] (map #(map cell-fn %1) sheet)))
+  ([sheet cell-fn] (map #(map cell-fn (cells %)) (rows sheet))))
 
 (defn sheet-names
   [wb]
