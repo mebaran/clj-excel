@@ -108,7 +108,8 @@
 (defn create-cell-style
   "Create style for workbook"
   [wb & {format :format alignment :alignment border :border fontspec :font
-         bg-color :background-color fg-color :foreground-color pattern :pattern}]
+         bg-color :background-color fg-color :foreground-color pattern :pattern
+         wrap :wrap}]
   (let [cell-style (.createCellStyle wb)]
     (if fontspec (.setFont cell-style (font wb fontspec)))
     (if format (.setDataFormat cell-style (data-format wb format)))
@@ -119,11 +120,12 @@
     (if fg-color (.setFillForegroundColor cell-style (col-idx fg-color)))
     (if bg-color (.setFillBackgroundColor cell-style (col-idx bg-color)))
     (if pattern  (.setFillPattern cell-style (cell-style-constant pattern)))
+    (if wrap (.setWrapText cell-style wrap))
     cell-style))
 
 ;; extract the sub-map of options supported by create-cell-style
 (defn- get-style-attributes [m]
-  (select-keys m [:format :alignment :border :font :background-color :foreground-color :pattern]))
+  (select-keys m [:format :alignment :border :font :background-color :foreground-color :pattern :wrap]))
 
 (defprotocol StyleCache
   (build-style [this cell-data]))
