@@ -5,7 +5,7 @@
   (:import [org.apache.poi.xssf.usermodel XSSFWorkbook])
   (:import [org.apache.poi.hssf.usermodel HSSFWorkbook])
   (:import [org.apache.poi.ss.usermodel Row Cell DateUtil WorkbookFactory CellStyle Font
-            Hyperlink]))
+            Hyperlink Workbook Sheet]))
 
 (def ^:dynamic *row-missing-policy* Row/CREATE_NULL_AS_BLANK)
 
@@ -34,7 +34,7 @@
 
 (defn constantize
   "Helper to read constants from constant like keywords within a class.  Reflection powered."
-  [klass kw]
+  [^Class klass kw]
   (.get (.getDeclaredField klass (-> kw name (.replace "-" "_") .toUpperCase)) Object))
 
 (defn cell-style-constant
@@ -55,17 +55,17 @@
 
 (defn data-format
   "Get dataformat by number or create new."
-  [wb sformat]
+  [^Workbook wb sformat]
   (cond
    (keyword? sformat) (data-format wb (sformat data-formats))
    (number? sformat) (short sformat)
-   (string? sformat) (-> wb .getCreationHelper .createDataFormat (.getFormat sformat))))
+   (string? sformat) (-> wb .getCreationHelper .createDataFormat (.getFormat ^String sformat))))
 
 (defn set-border
   "Set borders, css order style.  Borders set CSS order."
   ([cs all] (set-border cs all all all all))
   ([cs caps sides] (set-border cs caps sides caps sides))
-  ([cs top right bottom left] ;; CSS ordering
+  ([^CellStyle cs top right bottom left] ;; CSS ordering
      (.setBorderTop cs (cell-style-constant top :border))
      (.setBorderRight cs (cell-style-constant right :border))
      (.setBorderBottom cs (cell-style-constant bottom :border))
@@ -76,7 +76,7 @@
 
 (defn font
   "Register font with "
-  [wb fontspec]
+  [^Workbook wb fontspec]
   (if (isa? (type fontspec) Font)
     fontspec
     (let [default-font (.getFontAt wb (short 0)) ;; First font is default
@@ -107,7 +107,7 @@
 
 (defn create-cell-style
   "Create style for workbook"
-  [wb & {format :format alignment :alignment border :border fontspec :font
+  [^Workbook wb & {format :format alignment :alignment border :border fontspec :font
          bg-color :background-color fg-color :foreground-color pattern :pattern}]
   (let [cell-style (.createCellStyle wb)]
     (if fontspec (.setFont cell-style (font wb fontspec)))
@@ -150,8 +150,8 @@
 
 (defn cell-value
   "Return proper getter based on cell-value"
-  ([cell] (cell-value cell (.getCellType cell)))
-  ([cell cell-type]
+  ([^Cell cell] (cell-value cell (.getCellType cell)))
+  ([^Cell cell cell-type]
      (condp = cell-type
        Cell/CELL_TYPE_BLANK nil
        Cell/CELL_TYPE_STRING (.getStringCellValue cell)
@@ -163,19 +163,19 @@
        Cell/CELL_TYPE_ERROR {:error (.getErrorCellValue cell)}
        :unsupported)))
 
-(defn workbook-xssf
+(defn ^Workbook workbook-xssf
   "Create or open new excel workbook. Defaults to xlsx format."
   ([] (new XSSFWorkbook))
   ([input] (WorkbookFactory/create (input-stream input))))
 
-(defn workbook-hssf
+(defn ^Workbook workbook-hssf
   "Create or open new excel workbook. Defaults to xls format."
   ([] (new HSSFWorkbook))
   ([input] (WorkbookFactory/create (input-stream input))))
 
 (defn sheets
   "Get seq of sheets."
-  [wb] (map #(.getSheetAt wb %1) (range 0 (.getNumberOfSheets wb))))
+  [^Workbook wb] (map #(.getSheetAt wb %1) (range 0 (.getNumberOfSheets wb))))
 
 (defn rows
   "Return rows from sheet as seq.  Simple seq cast via Iterable implementation."
@@ -189,13 +189,39 @@
   "Return cells from sheet as seq."
   [row] (map cell-value (cells row)))
 
+(defn row-seq
+  "Returns a lazy seq of cells of row.
+  
+  Options:
+    :cell-fn function called on each cell, defaults to cell-value
+    :mode    either :logical (default) or :physical
+  
+  Modes:
+    :logical  returns all cells even if they are blank
+    :physical returns only the physically defined cells"
+  {:arglists '([row & opts])}
+  [^Row row & {:keys [cell-fn mode] :or {cell-fn cell-value mode :logical}}] 
+  (condp = mode
+    :logical (map #(when-let [cell (.getCell row %)] (cell-fn cell)) (range 0 (.getLastCellNum row)))
+    :physical (map cell-fn row)
+    (throw (ex-info (str "Unknown mode " mode) {:mode mode}))))
+
 (defn lazy-sheet
-  "Lazy seq of seq representing rows and cells."
-  ([sheet] (lazy-sheet sheet cell-value))
-  ([sheet cell-fn] (map #(map cell-fn %1) sheet)))
+  "Lazy seq of seqs representing rows and cells of sheet.
+  
+  Options:
+    :cell-fn function called on each cell, defaults to cell-value
+    :mode    either :logical (default) or :physical
+  
+  Modes:
+    :logical  returns all cells even if they are blank
+    :physical returns only the physically defined cells"
+  {:arglists '([sheet & opts])}
+  [sheet & {:keys [cell-fn mode] :or {cell-fn cell-value mode :logical}}] 
+  (map #(row-seq % :cell-fn cell-fn :mode mode) sheet))
 
 (defn sheet-names
-  [wb]
+  [^Workbook wb]
   (->> (.getNumberOfSheets wb) (range) (map #(.getSheetName wb %))))
 
 (defn lazy-workbook
@@ -205,15 +231,15 @@
 
 (defn get-cell
   "Sell cell within row"
-  ([row col] (.getCell row col))
-  ([sheet row col] (get-cell (or (.getRow sheet row) (.createRow sheet row)) col)))
+  ([^Row row col] (.getCell row col))
+  ([^Sheet sheet row col] (get-cell (or (.getRow sheet row) (.createRow sheet row)) col)))
 
 ;; Writing Functions
 
 (defn- get-link-type [m]
   (some #{:link-url :link-email :link-document :like-file} (keys m)))
 
-(defn create-link [cell kw link-to]
+(defn create-link [^Cell cell kw link-to]
   (let [link-type (constantize org.apache.poi.common.usermodel.Hyperlink kw)
         link      (-> cell .getSheet .getWorkbook .getCreationHelper
                       (.createHyperlink link-type))]
@@ -234,13 +260,13 @@
   (when-let [style (m :style)]
     (.setCellStyle cell style))
   (when-let [formula (m :formula)]
-    (.setCellFormula (m :formula))))
+    (.setCellFormula cell formula)))
 
 (defn set-cell
   "Set cell at specified location with value."
   ([cell value] (cell-mutator cell value))
-  ([row col value] (set-cell (or (get-cell row col) (.createCell row col)) value))
-  ([sheet row col value] (set-cell (or (.getRow sheet row) (.createRow sheet row)) col value)))
+  ([^Row row col value] (set-cell (or (get-cell row col) (.createCell row col)) value))
+  ([^Sheet sheet row col value] (set-cell (or (.getRow sheet row) (.createRow sheet row)) col value)))
 
 (defn merge-rows
   "Add rows at end of sheet."
@@ -253,7 +279,7 @@
 
 (defn build-sheet
   "Build sheet from seq of seq (representing cells in row of rows)."
-  [wb sheetname rows]
+  [^Workbook wb sheetname rows]
   (let [sheet (if sheetname
                 (.createSheet wb sheetname)
                 (.createSheet wb))]
@@ -270,6 +296,6 @@
 
 (defn save
   "Write workbook to output-stream as coerced by OutputStream."
-  [wb path]
+  [^Workbook wb path]
   (with-open [out (output-stream path)]
     (.write wb out)))
