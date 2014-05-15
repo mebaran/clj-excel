@@ -163,6 +163,13 @@
        Cell/CELL_TYPE_ERROR {:error (.getErrorCellValue cell)}
        :unsupported)))
 
+(defn cell-comment [cell]
+  (when cell
+    (when-let [comment (.getCellComment cell)]
+      (when-let [string (.getString comment)]
+        (when-let [string (.getString string)]
+          {:text string})))))
+
 (defn ^Workbook workbook-xssf
   "Create or open new excel workbook. Defaults to xlsx format."
   ([] (new XSSFWorkbook))
@@ -236,15 +243,32 @@
 
 ;; Writing Functions
 
+(defn get-creation-helper [cell]
+  (-> cell .getSheet .getWorkbook .getCreationHelper))
+
 (defn- get-link-type [m]
   (some #{:link-url :link-email :link-document :like-file} (keys m)))
 
 (defn create-link [^Cell cell kw link-to]
   (let [link-type (constantize org.apache.poi.common.usermodel.Hyperlink kw)
-        link      (-> cell .getSheet .getWorkbook .getCreationHelper
-                      (.createHyperlink link-type))]
+        link      (.createHyperlink (get-creation-helper cell) link-type)]
     (.setAddress link link-to)
     (.setHyperlink cell link)))
+
+(defn create-rich-text-string [cell text]
+  (.createRichTextString (get-creation-helper cell) text))
+
+(defn create-comment [cell {:keys [width height text] :or {width 2 height 2}}]
+  (let [helper (get-creation-helper cell)
+        anchor (doto (.createClientAnchor helper)
+                 (.setCol1 (.getColumnIndex cell))
+                 (.setCol2 (+ (.getColumnIndex cell) width))
+                 (.setRow1 (.getRowIndex cell))
+                 (.setRow2 (+ (.getRowIndex cell) height)))
+        rich-text (create-rich-text-string cell text)
+        comment (doto (.createCellComment (.createDrawingPatriarch (.getSheet cell)) anchor)
+                  (.setString rich-text))]
+    comment))
 
 (defmulti cell-mutator (fn [cell val] (class val)))
 (defmethod cell-mutator Boolean [^Cell cell ^Boolean b] (.setCellValue cell b))
@@ -260,7 +284,9 @@
   (when-let [style (m :style)]
     (.setCellStyle cell style))
   (when-let [formula (m :formula)]
-    (.setCellFormula cell formula)))
+    (.setCellFormula cell formula))
+  (when-let [comment (m :comment)]
+    (.setCellComment cell (create-comment cell comment))))
 
 (defn set-cell
   "Set cell at specified location with value."
