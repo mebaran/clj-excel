@@ -189,7 +189,7 @@
   [sheet] (seq sheet))
 
 (defn cells
-  "Return seq of cells from row.  Simpel seq cast via Iterable implementation." 
+  "Return seq of cells from row.  Simple seq cast via Iterable implementation."
   [row] (seq row))
 
 (defn values
