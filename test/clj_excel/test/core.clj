@@ -111,10 +111,10 @@
 ;; playing with cell styles
 ;; note: hyperlink-cell have unreadable color defaults; you better set those
 (def stylish-test-data
-   {"foo" [[{:value "Hello world" :font {:font "Courier New" :size 16 :color :blue}
+  {"foo" [[{:value "Hello world" :font {:font "Courier New" :size 16 :color :blue}
             :foreground-color :maroon :pattern :solid-foreground}]]
-    "bar" [[{:value "click me" :link-url "http://www.example.com/"
-             :font {:color :black :font "Serif" :size 10}}]]})
+   "bar" [[{:value "click me" :link-url "http://www.example.com/"
+            :font {:color :black :font "Serif" :size 10}}]]})
 
 (defn font-info [^Cell cell idx]
   (-> cell .getSheet .getWorkbook (.getFontAt (short idx)) bean

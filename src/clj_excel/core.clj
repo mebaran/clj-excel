@@ -108,7 +108,7 @@
 (defn create-cell-style
   "Create style for workbook"
   [^Workbook wb & {format :format alignment :alignment border :border fontspec :font
-         bg-color :background-color fg-color :foreground-color pattern :pattern}]
+                   bg-color :background-color fg-color :foreground-color pattern :pattern}]
   (let [cell-style (.createCellStyle wb)]
     (if fontspec (.setFont cell-style (font wb fontspec)))
     (if format (.setDataFormat cell-style (data-format wb format)))
@@ -198,16 +198,16 @@
 
 (defn row-seq
   "Returns a lazy seq of cells of row.
-  
+
   Options:
     :cell-fn function called on each cell, defaults to cell-value
     :mode    either :logical (default) or :physical
-  
+
   Modes:
     :logical  returns all cells even if they are blank
     :physical returns only the physically defined cells"
   {:arglists '([row & opts])}
-  [^Row row & {:keys [cell-fn mode] :or {cell-fn cell-value mode :logical}}] 
+  [^Row row & {:keys [cell-fn mode] :or {cell-fn cell-value mode :logical}}]
   (condp = mode
     :logical (map #(when-let [cell (.getCell row %)] (cell-fn cell)) (range 0 (.getLastCellNum row)))
     :physical (map cell-fn row)
@@ -215,16 +215,16 @@
 
 (defn lazy-sheet
   "Lazy seq of seqs representing rows and cells of sheet.
-  
+
   Options:
     :cell-fn function called on each cell, defaults to cell-value
     :mode    either :logical (default) or :physical
-  
+
   Modes:
     :logical  returns all cells even if they are blank
     :physical returns only the physically defined cells"
   {:arglists '([sheet & opts])}
-  [sheet & {:keys [cell-fn mode] :or {cell-fn cell-value mode :logical}}] 
+  [sheet & {:keys [cell-fn mode] :or {cell-fn cell-value mode :logical}}]
   (map #(row-seq % :cell-fn cell-fn :mode mode) sheet))
 
 (defn sheet-names
