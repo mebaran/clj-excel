@@ -108,7 +108,8 @@
 (defn create-cell-style
   "Create style for workbook"
   [^Workbook wb & {format :format alignment :alignment border :border fontspec :font
-                   bg-color :background-color fg-color :foreground-color pattern :pattern}]
+                   bg-color :background-color fg-color :foreground-color pattern :pattern
+                   wrap :wrap}]
   (let [cell-style (.createCellStyle wb)]
     (if fontspec (.setFont cell-style (font wb fontspec)))
     (if format (.setDataFormat cell-style (data-format wb format)))
