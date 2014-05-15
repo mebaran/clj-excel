@@ -1,4 +1,4 @@
-(defproject outpace/clj-excel "0.0.2"
+(defproject outpace/clj-excel "0.0.3"
   :description "Excel bindings for Clojure, based on Apache POI."
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [org.apache.poi/poi "3.9"]
