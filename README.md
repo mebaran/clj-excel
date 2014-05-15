@@ -44,7 +44,13 @@ Creating links:
 ```clojure
 ;; just the data
 {"a" [[{:value "foo" :link-document "b!A1"}]]
- "b" [[{:value "example.com" :link-url "http://www.example.com/"}]]})
+ "b" [[{:value "example.com" :link-url "http://www.example.com/"}]]}
+```
+
+Creating comments:
+
+```clojure
+{"a" [[{:value "foo" :comment {:text "Lorem Ipsum" :width 4 :height 2}}]]})
 ```
 
 [poi-types]: http://poi.apache.org/apidocs/org/apache/poi/ss/usermodel/Cell.html

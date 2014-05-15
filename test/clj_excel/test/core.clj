@@ -111,10 +111,10 @@
 ;; playing with cell styles
 ;; note: hyperlink-cell have unreadable color defaults; you better set those
 (def stylish-test-data
-   {"foo" [[{:value "Hello world" :font {:font "Courier New" :size 16 :color :blue}
+  {"foo" [[{:value "Hello world" :font {:font "Courier New" :size 16 :color :blue}
             :foreground-color :maroon :pattern :solid-foreground}]]
-    "bar" [[{:value "click me" :link-url "http://www.example.com/"
-             :font {:color :black :font "Serif" :size 10}}]]})
+   "bar" [[{:value "click me" :link-url "http://www.example.com/"
+            :font {:color :black :font "Serif" :size 10}}]]})
 
 (defn font-info [^Cell cell idx]
   (-> cell .getSheet .getWorkbook (.getFontAt (short idx)) bean
@@ -191,3 +191,19 @@
       (is (= [["A" "B" "C"] [1.0 nil 3.0]] (lazy-sheet sheet))))
     (testing "Mode physical"
       (is (= [["A" "B" "C"] [1.0 3.0]] (lazy-sheet sheet :mode :physical))))))
+
+(def comment-test-data
+  {"foo" [[{:value "Hello world" :comment {:text "Lorem Ipsum" :width 10 :height 3}}]]})
+
+(defn extract-comment [cell]
+  (merge (hash-map :value (cell-value cell)
+                   :comment (cell-comment cell))))
+
+(deftest comment-test
+  (let [expected {"foo"
+                  [[{:value "Hello world"
+                     :comment {:text "Lorem Ipsum"}}]]}]
+    (is (= (do-roundtrip comment-test-data :hssf extract-comment)
+           expected))
+    (is (= (do-roundtrip comment-test-data :xssf extract-comment)
+           expected))))
