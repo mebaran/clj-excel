@@ -108,7 +108,7 @@
 (defn create-cell-style
   "Create style for workbook"
   [^Workbook wb & {format :format alignment :alignment border :border fontspec :font
-         bg-color :background-color fg-color :foreground-color pattern :pattern}]
+                   bg-color :background-color fg-color :foreground-color pattern :pattern}]
   (let [cell-style (.createCellStyle wb)]
     (if fontspec (.setFont cell-style (font wb fontspec)))
     (if format (.setDataFormat cell-style (data-format wb format)))
@@ -163,6 +163,13 @@
        Cell/CELL_TYPE_ERROR {:error (.getErrorCellValue cell)}
        :unsupported)))
 
+(defn cell-comment [cell]
+  (when cell
+    (when-let [comment (.getCellComment cell)]
+      (when-let [string (.getString comment)]
+        (when-let [string (.getString string)]
+          {:text string})))))
+
 (defn ^Workbook workbook-xssf
   "Create or open new excel workbook. Defaults to xlsx format."
   ([] (new XSSFWorkbook))
@@ -182,7 +189,7 @@
   [sheet] (seq sheet))
 
 (defn cells
-  "Return seq of cells from row.  Simpel seq cast via Iterable implementation." 
+  "Return seq of cells from row.  Simple seq cast via Iterable implementation."
   [row] (seq row))
 
 (defn values
@@ -191,16 +198,16 @@
 
 (defn row-seq
   "Returns a lazy seq of cells of row.
-  
+
   Options:
     :cell-fn function called on each cell, defaults to cell-value
     :mode    either :logical (default) or :physical
-  
+
   Modes:
     :logical  returns all cells even if they are blank
     :physical returns only the physically defined cells"
   {:arglists '([row & opts])}
-  [^Row row & {:keys [cell-fn mode] :or {cell-fn cell-value mode :logical}}] 
+  [^Row row & {:keys [cell-fn mode] :or {cell-fn cell-value mode :logical}}]
   (condp = mode
     :logical (map #(when-let [cell (.getCell row %)] (cell-fn cell)) (range 0 (.getLastCellNum row)))
     :physical (map cell-fn row)
@@ -208,16 +215,16 @@
 
 (defn lazy-sheet
   "Lazy seq of seqs representing rows and cells of sheet.
-  
+
   Options:
     :cell-fn function called on each cell, defaults to cell-value
     :mode    either :logical (default) or :physical
-  
+
   Modes:
     :logical  returns all cells even if they are blank
     :physical returns only the physically defined cells"
   {:arglists '([sheet & opts])}
-  [sheet & {:keys [cell-fn mode] :or {cell-fn cell-value mode :logical}}] 
+  [sheet & {:keys [cell-fn mode] :or {cell-fn cell-value mode :logical}}]
   (map #(row-seq % :cell-fn cell-fn :mode mode) sheet))
 
 (defn sheet-names
@@ -236,15 +243,32 @@
 
 ;; Writing Functions
 
+(defn get-creation-helper [cell]
+  (-> cell .getSheet .getWorkbook .getCreationHelper))
+
 (defn- get-link-type [m]
   (some #{:link-url :link-email :link-document :like-file} (keys m)))
 
 (defn create-link [^Cell cell kw link-to]
   (let [link-type (constantize org.apache.poi.common.usermodel.Hyperlink kw)
-        link      (-> cell .getSheet .getWorkbook .getCreationHelper
-                      (.createHyperlink link-type))]
+        link      (.createHyperlink (get-creation-helper cell) link-type)]
     (.setAddress link link-to)
     (.setHyperlink cell link)))
+
+(defn create-rich-text-string [cell text]
+  (.createRichTextString (get-creation-helper cell) text))
+
+(defn create-comment [cell {:keys [width height text] :or {width 2 height 2}}]
+  (let [helper (get-creation-helper cell)
+        anchor (doto (.createClientAnchor helper)
+                 (.setCol1 (.getColumnIndex cell))
+                 (.setCol2 (+ (.getColumnIndex cell) width))
+                 (.setRow1 (.getRowIndex cell))
+                 (.setRow2 (+ (.getRowIndex cell) height)))
+        rich-text (create-rich-text-string cell text)
+        comment (doto (.createCellComment (.createDrawingPatriarch (.getSheet cell)) anchor)
+                  (.setString rich-text))]
+    comment))
 
 (defmulti cell-mutator (fn [cell val] (class val)))
 (defmethod cell-mutator Boolean [^Cell cell ^Boolean b] (.setCellValue cell b))
@@ -260,7 +284,9 @@
   (when-let [style (m :style)]
     (.setCellStyle cell style))
   (when-let [formula (m :formula)]
-    (.setCellFormula cell formula)))
+    (.setCellFormula cell formula))
+  (when-let [comment (m :comment)]
+    (.setCellComment cell (create-comment cell comment))))
 
 (defn set-cell
   "Set cell at specified location with value."
