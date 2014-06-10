@@ -286,7 +286,9 @@
   (when-let [formula (m :formula)]
     (.setCellFormula cell formula))
   (when-let [comment (m :comment)]
-    (.setCellComment cell (create-comment cell comment))))
+    (.setCellComment cell (create-comment cell comment)))
+  (when-let [height (m :height)]
+    (.setHeight (.getRow cell) height)))
 
 (defn set-cell
   "Set cell at specified location with value."
