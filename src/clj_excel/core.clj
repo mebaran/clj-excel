@@ -286,7 +286,10 @@
   (when-let [formula (m :formula)]
     (.setCellFormula cell formula))
   (when-let [comment (m :comment)]
-    (.setCellComment cell (create-comment cell comment))))
+    (.setCellComment cell (create-comment cell comment)))
+  (let [use-merged-cells (m :autosize)]
+    (when-not (nil? use-merged-cells)
+      (.autoSizeColumn (.getSheet cell) (.getColumnIndex cell) use-merged-cells))))
 
 (defn set-cell
   "Set cell at specified location with value."
