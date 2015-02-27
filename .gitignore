@@ -6,3 +6,4 @@
 /.lein-*
 /checkouts
 /target
+.nrepl-port

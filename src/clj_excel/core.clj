@@ -4,6 +4,7 @@
   (:import java.util.Date)
   (:import [org.apache.poi.xssf.usermodel XSSFWorkbook])
   (:import [org.apache.poi.hssf.usermodel HSSFWorkbook])
+  (:import [org.apache.poi.xssf.streaming SXSSFWorkbook])
   (:import [org.apache.poi.ss.usermodel Row Cell DateUtil WorkbookFactory CellStyle Font
             Hyperlink Workbook Sheet]))
 
@@ -172,6 +173,11 @@
         (when-let [string (.getString string)]
           {:text string})))))
 
+(defn ^Workbook workbook-sxssf
+  "Create or open new streaming excel workbook. Defaults to xlsx format."
+  ([] (new SXSSFWorkbook))
+  ([input] (WorkbookFactory/create (input-stream input))))
+
 (defn ^Workbook workbook-xssf
   "Create or open new excel workbook. Defaults to xlsx format."
   ([] (new XSSFWorkbook))
@@ -299,11 +305,9 @@
 (defn merge-rows
   "Add rows at end of sheet."
   [sheet start rows]
-  (doall
-   (map
-    (fn [rownum vals] (doall (map #(set-cell sheet rownum %1 %2) (iterate inc 0) vals)))
-    (range start (+ start (count rows)))
-    rows)))
+  (doseq [[row-idx row]  (map-indexed vector rows)
+          [col-idx cell] (map-indexed vector row)]
+    (set-cell sheet (+ start row-idx) col-idx cell)))
 
 (defn build-sheet
   "Build sheet from seq of seq (representing cells in row of rows)."
@@ -326,4 +330,6 @@
   "Write workbook to output-stream as coerced by OutputStream."
   [^Workbook wb path]
   (with-open [out (output-stream path)]
-    (.write wb out)))
+    (.write wb out)
+    (when (isa? wb SXSSFWorkbook)
+      (.dispose wb))))
