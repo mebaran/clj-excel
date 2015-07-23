@@ -5,7 +5,8 @@
   (:import [org.apache.poi.xssf.usermodel XSSFWorkbook])
   (:import [org.apache.poi.hssf.usermodel HSSFWorkbook])
   (:import [org.apache.poi.ss.usermodel Row Cell DateUtil WorkbookFactory CellStyle Font
-            Hyperlink Workbook Sheet]))
+            Hyperlink Workbook Sheet])
+  (:import [java.nio.charset.Charset]))
 
 (def ^:dynamic *row-missing-policy* Row/CREATE_NULL_AS_BLANK)
 
@@ -154,7 +155,7 @@
   ([^Cell cell cell-type]
      (condp = cell-type
        Cell/CELL_TYPE_BLANK nil
-       Cell/CELL_TYPE_STRING (.getStringCellValue cell)
+       Cell/CELL_TYPE_STRING (-> cell .getStringCellValue (.getBytes Charset/forName "UTF-8"))
        Cell/CELL_TYPE_NUMERIC (if (DateUtil/isCellDateFormatted cell)
                                 (.getDateCellValue cell)
                                 (.getNumericCellValue cell))
