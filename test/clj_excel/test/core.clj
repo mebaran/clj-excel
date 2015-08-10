@@ -14,8 +14,9 @@
 ;; build a workbook
 (defn wb-from-data [data & opts]
   (let [as-set (set opts)
-        wb     (cond (contains? as-set :hssf) (workbook-hssf)
-                     :else                    (workbook-xssf))]
+        wb     (cond (contains? as-set :hssf)  (workbook-hssf)
+                     (contains? as-set :sxxsf) (workbook-sxssf)
+                     :else                     (workbook-xssf))]
     (build-workbook wb data)))
 
 ;; save & reload
@@ -39,7 +40,8 @@
 
 (deftest roundtrip-trivial
   (is (valid-workbook-roundtrip? trivial-input :xssf))
-  (is (valid-workbook-roundtrip? trivial-input :hssf)))
+  (is (valid-workbook-roundtrip? trivial-input :hssf))
+  (is (valid-workbook-roundtrip? trivial-input :sxssf)))
 
 
 ;; FIXME: Dates need hand holding :-(
@@ -56,7 +58,8 @@
 
 (deftest roundtrip-many
   (is (fixed-roundtrip? many-sheets :xssf))
-  (is (fixed-roundtrip? many-sheets :hssf)))
+  (is (fixed-roundtrip? many-sheets :hssf))
+  (is (fixed-roundtrip? many-sheets :sxssf)))
 
 ;; setting a map-typed object: value & hyperlink
 (def url-link-input {"a" [[{:value "example.com" :link-url "http://www.example.com/"}]]})
@@ -64,7 +67,7 @@
   {:value (cell-value cell) :link-url (.getAddress (.getHyperlink cell))})
 
 (deftest cell-url-link
-  (doseq [t [:hssf :xssf]]
+  (doseq [t [:hssf :xssf :sxssf]]
     (is (valid-workbook-roundtrip? url-link-input t val-link-map))))
 
 ;; verify the fontspec api works
@@ -142,6 +145,8 @@
     (is (= (do-roundtrip stylish-test-data :hssf extract-stylish)
            expected))
     (is (= (do-roundtrip stylish-test-data :xssf extract-stylish)
+           expected))
+    (is (= (do-roundtrip stylish-test-data :sxssf extract-stylish)
            expected))))
 
 (deftest cell-mutator-test
@@ -206,4 +211,6 @@
     (is (= (do-roundtrip comment-test-data :hssf extract-comment)
            expected))
     (is (= (do-roundtrip comment-test-data :xssf extract-comment)
+           expected))
+    (is (= (do-roundtrip comment-test-data :sxssf extract-comment)
            expected))))
