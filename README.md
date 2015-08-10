@@ -1,5 +1,8 @@
 # clj-excel: The Beauty And The Beast
 
+> This is a fork from the original clj-excel. It has a few more
+> features but really no more documentation.
+
 The goal is to give you a carefree experience while using
 [Apache POI][poi-home] from Clojure.
 
@@ -75,7 +78,5 @@ Depending on your needs:
 [poi-src]: http://svn.apache.org/repos/asf/poi/trunk/ "POI source code"
 
 ## License
-
-Copyright (C) 2012 FIXME
 
 Distributed under the Eclipse Public License, the same as Clojure.
