@@ -11,4 +11,10 @@
              :test {:resource-paths ["test-resources"]}}
   :global-vars {*warn-on-reflection* true}
   :deploy-repositories [["clojars" {:url "https://clojars.org/repo"
-                                    :sign-releases false}]])
+                                    :sign-releases false}]]
+  :release-tasks [["vcs" "assert-committed"]
+                  ["change" "version" "leiningen.release/bump-version" "release"]
+                  ["vcs" "commit"]
+                  ["deploy"]
+                  ["change" "version" "leiningen.release/bump-version"]
+                  ["vcs" "commit"]])
