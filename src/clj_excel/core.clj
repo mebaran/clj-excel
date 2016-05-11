@@ -159,7 +159,7 @@
                                 (.getDateCellValue cell)
                                 (.getNumericCellValue cell))
        Cell/CELL_TYPE_BOOLEAN (.getBooleanCellValue cell)
-       Cell/CELL_TYPE_FORMULA {:formula (.getCellFormula cell)}
+       Cell/CELL_TYPE_FORMULA {:formula (.getCellFormula cell), :value (.getStringCellValue cell)}
        Cell/CELL_TYPE_ERROR {:error (.getErrorCellValue cell)}
        :unsupported)))
 
