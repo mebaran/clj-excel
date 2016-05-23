@@ -216,7 +216,7 @@
            expected))))
 
 (deftest numeric-types-test
-  (testing "Casts type based upon formatting"
+  (testing "Reads casting type based upon cells' data format"
     (let [wb (workbook-hssf (io/resource "numeric-types.xls"))
           sheet (-> wb sheets first)
           decimal-value (cell-value (get-cell sheet 0 0))

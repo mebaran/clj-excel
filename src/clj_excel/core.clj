@@ -6,7 +6,7 @@
   (:import [org.apache.poi.hssf.usermodel HSSFWorkbook])
   (:import [org.apache.poi.xssf.streaming SXSSFWorkbook])
   (:import [org.apache.poi.ss.usermodel Row Cell DateUtil WorkbookFactory CellStyle Font
-            Hyperlink Workbook Sheet]))
+            Hyperlink Workbook Sheet DataFormatter]))
 
 (def ^:dynamic *row-missing-policy* Row/CREATE_NULL_AS_BLANK)
 
@@ -151,6 +151,15 @@
 
 ;; Reading functions
 
+
+(defn- parse-numeric-value [^java.text.DecimalFormat fmt ^String st]
+  (.parse fmt st))
+
+(defn- cell-numeric-value [^Cell cell]
+  (let [formatter (DataFormatter.)]
+    (parse-numeric-value (.createFormat formatter cell)
+                         (.formatCellValue formatter cell))))
+
 (defn cell-value
   "Return proper getter based on cell-value"
   ([^Cell cell] (cell-value cell (.getCellType cell)))
@@ -160,7 +169,7 @@
        Cell/CELL_TYPE_STRING (.getStringCellValue cell)
        Cell/CELL_TYPE_NUMERIC (if (DateUtil/isCellDateFormatted cell)
                                 (.getDateCellValue cell)
-                                (.getNumericCellValue cell))
+                                (cell-numeric-value cell))
        Cell/CELL_TYPE_BOOLEAN (.getBooleanCellValue cell)
        Cell/CELL_TYPE_FORMULA {:formula (.getCellFormula cell)}
        Cell/CELL_TYPE_ERROR {:error (.getErrorCellValue cell)}
