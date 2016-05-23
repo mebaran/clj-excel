@@ -35,8 +35,8 @@
   ([data mode] (= data (do-roundtrip data mode cell-value)))
   ([data mode cell-fn] (= data (do-roundtrip data mode cell-fn))))
 
-;; just numbers (doubles in poi); note: rows need not have equal length
-(def trivial-input {"one" [[1.0] [2.0 3.0] [4.0 5.0 6.0]]})
+;; just numbers; note: rows need not have equal length
+(def trivial-input {"one" [[1] [2 3] [4 5 6]]})
 
 (deftest roundtrip-trivial
   (is (valid-workbook-roundtrip? trivial-input :xssf))
@@ -52,7 +52,7 @@
 
 (def now (java.util.Date.))
 ;; multiple sheets with different cell types
-(def many-sheets {"one"   [[1.0]]   "two"  [["hello"]]
+(def many-sheets {"one"   [[1]]   "two"  [["hello"]]
                   "three" [[false]] "four" [[now]]
                   "five"  [[nil]]})
 
@@ -183,19 +183,19 @@
   (let [wb (workbook-hssf (io/resource "test-nil-cell-1.xls"))
         row (-> wb (.getSheetAt 0) second)]
     (testing "Default mode is logical"
-      (is (= [1.0 nil 3.0] (row-seq row))))
+      (is (= [1 nil 3] (row-seq row))))
     (testing "Mode logical"
-      (is (= [1.0 nil 3.0] (row-seq row :mode :logical))))
+      (is (= [1 nil 3] (row-seq row :mode :logical))))
     (testing "Mode physical"
-      (is (= [1.0 3.0] (row-seq row :mode :physical))))))
+      (is (= [1 3] (row-seq row :mode :physical))))))
 
 (deftest lazy-sheet-test
   (let [wb (workbook-hssf (io/resource "test-nil-cell-1.xls"))
         sheet (.getSheetAt wb 0)]
     (testing "Default mode is logical"
-      (is (= [["A" "B" "C"] [1.0 nil 3.0]] (lazy-sheet sheet))))
+      (is (= [["A" "B" "C"] [1 nil 3]] (lazy-sheet sheet))))
     (testing "Mode physical"
-      (is (= [["A" "B" "C"] [1.0 3.0]] (lazy-sheet sheet :mode :physical))))))
+      (is (= [["A" "B" "C"] [1 3]] (lazy-sheet sheet :mode :physical))))))
 
 (def comment-test-data
   {"foo" [[{:value "Hello world" :comment {:text "Lorem Ipsum" :width 10 :height 3}}]]})
