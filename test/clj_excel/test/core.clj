@@ -214,3 +214,24 @@
            expected))
     (is (= (do-roundtrip comment-test-data :sxssf extract-comment)
            expected))))
+
+(deftest numeric-types-test
+  (testing "Casts type based upon formatting"
+    (let [wb (workbook-hssf (io/resource "numeric-types.xls"))
+          sheet (-> wb sheets first)
+          decimal-value (cell-value (get-cell sheet 0 0))
+          integer-value (cell-value (get-cell sheet 0 1))
+          currency-value (cell-value (get-cell sheet 0 2))
+          percentage-value-100 (cell-value (get-cell sheet 0 3))
+          percentage-value-99 (cell-value (get-cell sheet 0 4))]
+      (testing "for decimals"
+        (is (= 3.14 decimal-value))
+        (is (instance? java.lang.Double decimal-value)))
+      (testing "for integers"
+        (is (= 42 integer-value))
+        (is (instance? java.lang.Long integer-value)))
+      (testing "for currency"
+        (is (= "£99.99" currency-value)))
+      (testing "for percentages"
+        (is (= 1 percentage-value-100))
+        (is (= 0.99 percentage-value-99))))))
