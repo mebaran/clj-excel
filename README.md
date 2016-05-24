@@ -1,14 +1,13 @@
 # clj-excel: The Beauty And The Beast
 
-> This is a fork from the original clj-excel. It has a few more
-> features but really no more documentation.
+> This is a fork from out-pace/clj-excel created for use with the [grafter](http://grafter.org) ETL framework. We added support for coercing numbers when reading workbooks such that the value matches the GUI representation (not the underlying excel storage format which is always a double).
+
+
 
 The goal is to give you a carefree experience while using
 [Apache POI][poi-home] from Clojure.
 
 Please note that the API isn't stable yet!
-
-[![Build Status](https://travis-ci.org/undernorthernsky/clj-excel.png)](https://travis-ci.org/undernorthernsky/clj-excel)
 
 [poi-home]: http://poi.apache.org/ "The Java API for Microsoft Documents"
 
