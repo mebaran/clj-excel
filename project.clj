@@ -1,4 +1,4 @@
-(defproject grafter/clj-excel "0.0.9"
+(defproject grafter/clj-excel "0.0.10-SNAPSHOT"
   :description "Excel bindings for Clojure, based on Apache POI."
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [org.apache.poi/poi "3.9"]
