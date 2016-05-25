@@ -1,4 +1,4 @@
-(defproject grafter/clj-excel "0.0.9-SNAPSHOT"
+(defproject grafter/clj-excel "0.0.9"
   :description "Excel bindings for Clojure, based on Apache POI."
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [org.apache.poi/poi "3.9"]
@@ -9,4 +9,6 @@
                    :dependencies [[org.clojure/tools.namespace "0.2.11"]]
                    :global-vars {*print-length* 20}}
              :test {:resource-paths ["test-resources"]}}
-  :global-vars {*warn-on-reflection* true})
+  :global-vars {*warn-on-reflection* true}
+  :deploy-repositories  [["releases" :clojars]
+                         ["snapshots" :clojars]])
