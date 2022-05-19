@@ -7,3 +7,5 @@
 /checkouts
 /target
 .nrepl-port
+.idea/
+clj-excel.iml
