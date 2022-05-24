@@ -45,8 +45,8 @@ Creating links:
 
 ```clojure
 ;; just the data
-{"a" [[{:value "foo" :link-document "b!A1"}]]
- "b" [[{:value "example.com" :link-url "http://www.example.com/"}]]}
+{"a" [[{:value "foo" :document "b!A1"}]]
+ "b" [[{:value "example.com" :url "http://www.example.com/"}]]}
 ```
 
 Creating comments:

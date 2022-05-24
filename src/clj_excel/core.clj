@@ -1,14 +1,17 @@
 (ns clj-excel.core
   (:use clojure.java.io)
   (:import [clojure.lang Keyword APersistentMap])
-  (:import java.util.Date)
   (:import [org.apache.poi.xssf.usermodel XSSFWorkbook])
   (:import [org.apache.poi.hssf.usermodel HSSFWorkbook])
   (:import [org.apache.poi.xssf.streaming SXSSFWorkbook])
-  (:import [org.apache.poi.ss.usermodel Row Cell DateUtil WorkbookFactory CellStyle Font
-            Hyperlink Workbook Sheet DataFormatter]))
+  (:import [org.apache.poi.ss.usermodel Row Row$MissingCellPolicy Cell CellType DateUtil WorkbookFactory CellStyle Font
+                                        Workbook Sheet DataFormatter BorderStyle FillPatternType]
+           (org.apache.poi.hpsf Date)
+           (java.text DecimalFormat NumberFormat)
+           (org.apache.poi.common.usermodel HyperlinkType)
+           (java.time LocalDate LocalDateTime)))
 
-(def ^:dynamic *row-missing-policy* Row/CREATE_NULL_AS_BLANK)
+(def ^:dynamic *row-missing-policy* Row$MissingCellPolicy/CREATE_NULL_AS_BLANK)
 
 (def data-formats {:general 0 :number 1 :decimal 2 :comma 3 :accounting 4
                    :dollars 5 :red-neg 6 :cents 7 :dollars-red-neg 8
@@ -33,10 +36,15 @@
 
 ;; Utility Constant Look Up ()
 
+(defn field-name [kw]
+  (-> kw name (.replace "-" "_") .toUpperCase))
+
 (defn constantize
-  "Helper to read constants from constant like keywords within a class.  Reflection powered."
+  "Helper to read constants from constant like keywords within a class.
+  Reflection powered."
   [^Class klass kw]
-  (.get (.getDeclaredField klass (-> kw name (.replace "-" "_") .toUpperCase)) Object))
+  (.get (.getDeclaredField klass (field-name kw))
+        Object))
 
 (defn cell-style-constant
   ([kw prefix]
@@ -66,11 +74,11 @@
   "Set borders, css order style.  Borders set CSS order."
   ([cs all] (set-border cs all all all all))
   ([cs caps sides] (set-border cs caps sides caps sides))
-  ([^CellStyle cs top right bottom left] ;; CSS ordering
-     (.setBorderTop cs (cell-style-constant top :border))
-     (.setBorderRight cs (cell-style-constant right :border))
-     (.setBorderBottom cs (cell-style-constant bottom :border))
-     (.setBorderLeft cs (cell-style-constant left :border))))
+  ([cs top right bottom left] ;; CSS ordering
+     (.setBorderTop cs (BorderStyle/valueOf ^String (field-name top)))
+     (.setBorderRight cs (BorderStyle/valueOf ^String (field-name right)))
+     (.setBorderBottom cs (BorderStyle/valueOf ^String (field-name bottom)))
+     (.setBorderLeft cs (BorderStyle/valueOf ^String (field-name left)))))
 
 (defn- col-idx [v]
   (short (if (keyword? v) (color-indices v) v)))
@@ -81,24 +89,22 @@
   (if (isa? (type fontspec) Font)
     fontspec
     (let [default-font (.getFontAt wb (short 0)) ;; First font is default
-          boldweight (short (get fontspec :boldweight (if (:bold fontspec)
-                                                        Font/BOLDWEIGHT_BOLD
-                                                        Font/BOLDWEIGHT_NORMAL)))
           color (short (if-let [k (fontspec :color)]
                          (col-idx k)
                          (.getColor default-font)))
+          is-bold? (or (:bold fontspec) false)
           size (short (get fontspec :size (.getFontHeightInPoints default-font)))
           name (str (get fontspec :font (.getFontName default-font)))
           italic (boolean (get fontspec :italic false))
           strikeout (boolean (get fontspec :strikeout false))
           typeoffset (short (get fontspec :typeoffset 0))
-          underline (byte (if-let [k (fontspec :underline)]
+          underline (byte (if-let [k (:underline fontspec)]
                             (if (keyword? k) (underline-indices k) k)
                             (.getUnderline default-font)))]
       (or
-       (.findFont wb boldweight size color name italic strikeout typeoffset underline)
+       (.findFont wb is-bold? color size name italic strikeout typeoffset underline)
        (doto (.createFont wb)
-         (.setBoldweight boldweight)
+         (.setBold is-bold?)
          (.setColor color)
          (.setFontName name)
          (.setItalic italic)
@@ -120,7 +126,7 @@
                  (set-border cell-style border)))
     (if fg-color (.setFillForegroundColor cell-style (col-idx fg-color)))
     (if bg-color (.setFillBackgroundColor cell-style (col-idx bg-color)))
-    (if pattern  (.setFillPattern cell-style (cell-style-constant pattern)))
+    (if pattern (.setFillPattern cell-style (FillPatternType/valueOf (field-name pattern))))
     (if wrap (.setWrapText cell-style wrap))
     cell-style))
 
@@ -151,28 +157,28 @@
 
 ;; Reading functions
 
-
-(defn- parse-numeric-value [^java.text.DecimalFormat fmt ^String st]
-  (.parse fmt st))
-
 (defn- cell-numeric-value [^Cell cell]
-  (let [formatter (DataFormatter.)]
-    (parse-numeric-value (.createFormat formatter cell)
-                         (.formatCellValue formatter cell))))
+  (let [formatter (DataFormatter.)
+        st (.formatCellValue formatter cell)
+        percentFormatter (NumberFormat/getPercentInstance)]
+    (if (clojure.string/includes? st "%")
+      (.parse percentFormatter st)
+      (.parse (DecimalFormat.)
+              st))))
 
 (defn cell-value
   "Return proper getter based on cell-value"
   ([^Cell cell] (cell-value cell (.getCellType cell)))
   ([^Cell cell cell-type]
      (condp = cell-type
-       Cell/CELL_TYPE_BLANK nil
-       Cell/CELL_TYPE_STRING (.getStringCellValue cell)
-       Cell/CELL_TYPE_NUMERIC (if (DateUtil/isCellDateFormatted cell)
+       CellType/BLANK nil
+       CellType/STRING (.getStringCellValue cell)
+       CellType/NUMERIC (if (DateUtil/isCellDateFormatted cell)
                                 (.getDateCellValue cell)
                                 (cell-numeric-value cell))
-       Cell/CELL_TYPE_BOOLEAN (.getBooleanCellValue cell)
-       Cell/CELL_TYPE_FORMULA {:formula (.getCellFormula cell)}
-       Cell/CELL_TYPE_ERROR {:error (.getErrorCellValue cell)}
+       CellType/BOOLEAN (.getBooleanCellValue cell)
+       CellType/FORMULA {:formula (.getCellFormula cell)}
+       CellType/ERROR {:error (.getErrorCellValue cell)}
        :unsupported)))
 
 (defn cell-comment [cell]
@@ -264,10 +270,10 @@
   (-> cell .getSheet .getWorkbook .getCreationHelper))
 
 (defn- get-link-type [m]
-  (some #{:link-url :link-email :link-document :like-file} (keys m)))
+  (some #{:url :email :document :file} (keys m)))
 
 (defn create-link [^Cell cell kw link-to]
-  (let [link-type (constantize org.apache.poi.common.usermodel.Hyperlink kw)
+  (let [link-type (constantize HyperlinkType kw)
         link      (.createHyperlink (get-creation-helper cell) link-type)]
     (.setAddress link link-to)
     (.setHyperlink cell link)))
@@ -292,8 +298,10 @@
 (defmethod cell-mutator Number [^Cell cell n] (.setCellValue cell (double n)))
 (defmethod cell-mutator String [^Cell cell ^String s] (.setCellValue cell s))
 (defmethod cell-mutator Keyword [^Cell cell kw] (.setCellValue cell (name kw)))
-(defmethod cell-mutator Date [^Cell cell ^Date date] (.setCellValue cell date))
-(defmethod cell-mutator nil [^Cell cell null] (.setCellType cell Cell/CELL_TYPE_BLANK))
+(defmethod cell-mutator java.util.Date [^Cell cell ^Date date] (.setCellValue cell ^java.util.Date date))
+(defmethod cell-mutator LocalDate [^Cell cell ^Date date] (.setCellValue cell ^LocalDate date))
+(defmethod cell-mutator LocalDateTime [^Cell cell ^Date date] (.setCellValue cell ^LocalDateTime date))
+(defmethod cell-mutator nil [^Cell cell null] (.setCellType cell CellType/BLANK))
 (defmethod cell-mutator APersistentMap [^Cell cell m]
   (cell-mutator cell (m :value))
   (when-let [link-key (get-link-type m)]

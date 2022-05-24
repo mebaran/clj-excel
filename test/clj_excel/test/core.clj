@@ -3,7 +3,9 @@
   (:use [clojure.test])
   (:require [clojure.java.io :as io])
   (:import [java.io ByteArrayInputStream ByteArrayOutputStream]
-           [org.apache.poi.ss.usermodel WorkbookFactory DateUtil Font Cell]))
+           [org.apache.poi.ss.usermodel WorkbookFactory DateUtil Cell CellType FillPatternType BorderStyle]
+           (java.time LocalDateTime)
+           (java.time.temporal ChronoUnit)))
 
 ;; restore data to nested vecs instead of seqs; equality test
 (defn postproc-wb [m]
@@ -43,14 +45,20 @@
   (is (valid-workbook-roundtrip? trivial-input :hssf))
   (is (valid-workbook-roundtrip? trivial-input :sxssf)))
 
+(def now (-> (LocalDateTime/now)
+             (.truncatedTo ChronoUnit/HOURS)))
 
-;; FIXME: Dates need hand holding :-(
-(defn fix-date [e] [[(DateUtil/getJavaDate (ffirst e))]])
+;; Dates are stored internally in Excel as doubles and there is a loss
+;; of precision when round-tripping
+(defn fix-date [e]
+  [[(-> (DateUtil/getLocalDateTime (ffirst e))
+        (.truncatedTo ChronoUnit/HOURS))]])
+
 (defn fixed-roundtrip? [data mode]
-  (-> (do-roundtrip data mode cell-value) (update-in ["four"] fix-date)
+  (-> (do-roundtrip data mode cell-value)
+      (update-in ["four"] fix-date)
       (= data)))
 
-(def now (java.util.Date.))
 ;; multiple sheets with different cell types
 (def many-sheets {"one"   [[1]]   "two"  [["hello"]]
                   "three" [[false]] "four" [[now]]
@@ -62,9 +70,9 @@
   (is (fixed-roundtrip? many-sheets :sxssf)))
 
 ;; setting a map-typed object: value & hyperlink
-(def url-link-input {"a" [[{:value "example.com" :link-url "http://www.example.com/"}]]})
+(def url-link-input {"a" [[{:value "example.com" :url "http://www.example.com/"}]]})
 (defn val-link-map [^Cell cell]
-  {:value (cell-value cell) :link-url (.getAddress (.getHyperlink cell))})
+  {:value (cell-value cell) :url (.getAddress (.getHyperlink cell))})
 
 (deftest cell-url-link
   (doseq [t [:hssf :xssf :sxssf]]
@@ -74,7 +82,7 @@
 (def font-test-data
   [{:in {:font "Courier New" :size 16 :bold true}
     :out {:fontName "Courier New" :fontHeightInPoints 16
-          :boldweight Font/BOLDWEIGHT_BOLD} }
+          :bold true}}
    {:in {:font "Arial" :size 12 :italic true :color (color-indices :red) :strikeout true}
     :out {:fontName "Arial" :fontHeightInPoints 12 :italic true
           :color (color-indices :red) :strikeout true}}
@@ -100,15 +108,24 @@
     ;; all to the same type
     (is (= (select-keys (bean (create-cell-style wb :border :medium-dashed))
                         [:borderTop :borderRight :borderBottom :borderLeft])
-           {:borderLeft 8, :borderBottom 8, :borderRight 8, :borderTop 8}))
+           {:borderLeft BorderStyle/MEDIUM_DASHED
+            :borderBottom BorderStyle/MEDIUM_DASHED
+            :borderRight BorderStyle/MEDIUM_DASHED
+            :borderTop BorderStyle/MEDIUM_DASHED}))
     ;; grouped
     (is (= (select-keys (bean (create-cell-style wb :border [:none :medium]))
                         [:borderTop :borderRight :borderBottom :borderLeft])
-           {:borderLeft 2, :borderBottom 0, :borderRight 2, :borderTop 0}))
+           {:borderLeft BorderStyle/MEDIUM
+            :borderBottom BorderStyle/NONE
+            :borderRight BorderStyle/MEDIUM
+            :borderTop BorderStyle/NONE}))
     ;; individual styles
     (is (= (select-keys (bean (create-cell-style wb :border [:none :thin :medium :thick]))
                         [:borderTop :borderRight :borderBottom :borderLeft])
-           {:borderLeft 5, :borderBottom 2, :borderRight 1, :borderTop 0}))))
+           {:borderLeft BorderStyle/THICK
+            :borderBottom BorderStyle/MEDIUM
+            :borderRight BorderStyle/THIN
+            :borderTop BorderStyle/NONE}))))
 
 
 ;; playing with cell styles
@@ -116,7 +133,7 @@
 (def stylish-test-data
   {"foo" [[{:value "Hello world" :font {:font "Courier New" :size 16 :color :blue}
             :foreground-color :maroon :pattern :solid-foreground}]]
-   "bar" [[{:value "click me" :link-url "http://www.example.com/"
+   "bar" [[{:value "click me" :url "http://www.example.com/"
             :font {:color :black :font "Serif" :size 10}}]]})
 
 (defn font-info [^Cell cell idx]
@@ -129,17 +146,17 @@
                                        [:fillPattern :fillForegroundColor])
                    :font (font-info cell (.getFontIndex (.getCellStyle cell))))
          (when-let [link (.getHyperlink cell)]
-           {:link-url (.getAddress link)})))
+           {:url (.getAddress link)})))
 
 ;; note: needs explicit fonts; different defaults xls: Arial, xlsx: Colibri
 (deftest stylish-test
   (let [expected {"bar"
-                  [[{:style {:fillForegroundColor 64, :fillPattern 0},
-                     :link-url "http://www.example.com/",
+                  [[{:style {:fillForegroundColor 64, :fillPattern FillPatternType/NO_FILL},
+                     :url "http://www.example.com/",
                      :font {:color 8, :fontHeightInPoints 10, :fontName "Serif"},
                      :value "click me"}]],
                   "foo"
-                  [[{:style {:fillForegroundColor 25, :fillPattern 1},
+                  [[{:style {:fillForegroundColor 25, :fillPattern FillPatternType/SOLID_FOREGROUND},
                      :font {:color 12, :fontHeightInPoints 16, :fontName "Courier New"},
                      :value "Hello world"}]]}]
     (is (= (do-roundtrip stylish-test-data :hssf extract-stylish)
@@ -170,7 +187,7 @@
       (is (= #inst "2013-09-11" (.getDateCellValue cell))))
     (testing "Setting nil"
       (cell-mutator cell nil)
-      (is (= Cell/CELL_TYPE_BLANK (.getCellType cell))))
+      (is (= CellType/BLANK (.getCellType cell))))
     (testing "Setting a cell style"
       (let [cs (create-cell-style wb)]
         (cell-mutator cell {:style cs})
